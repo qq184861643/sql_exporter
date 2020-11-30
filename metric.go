@@ -79,8 +79,9 @@ func (mf MetricFamily) Collect(row map[string]interface{}, ch chan<- Metric) {
 		if mf.config.ValueLabel != "" {
 			labelValues[len(labelValues)-1] = v
 		}
-		value := row[v].(float64)
-		ch <- NewMetric(&mf, value, labelValues...)
+		if value, ok := row[v].(float64); ok {
+			ch <- NewMetric(&mf, value, labelValues...)
+		}
 	}
 }
 
