@@ -1,13 +1,16 @@
 package sql_exporter
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
-
 	"github.com/free/sql_exporter/config"
 	"github.com/free/sql_exporter/errors"
-	log "github.com/golang/glog"
+	//log "github.com/golang/glog"
+	"regexp"
+	"strconv"
+	"strings"
 )
 
 // Query wraps a sql.Stmt and all the metrics populated from it. It helps extract keys and values from result rows.
@@ -135,21 +138,22 @@ func (q *Query) scanDest(rows *sql.Rows) ([]interface{}, errors.WithContext) {
 	// Create the slice to scan the row into, with strings for keys and float64s for values.
 	dest := make([]interface{}, 0, len(columns))
 	have := make(map[string]bool, len(q.columnTypes))
-	for i, column := range columns {
+	//for i, column := range columns {
+	for _, column := range columns {
 		switch q.columnTypes[column] {
 		case columnTypeKey:
 			dest = append(dest, new(string))
 			have[column] = true
 		case columnTypeValue:
-			dest = append(dest, new(float64))
+			dest = append(dest, new(sql.RawBytes))
 			have[column] = true
 		default:
-			if column == "" {
+			/*if column == "" {
 				log.Warningf("[%s] Unnamed column %d returned by query", q.logContext, i)
 			} else {
 				log.Warningf("[%s] Extra column %q returned by query", q.logContext, column)
-			}
-			dest = append(dest, new(interface{}))
+			}*/
+			dest = append(dest, new(sql.RawBytes))
 		}
 	}
 
@@ -183,12 +187,45 @@ func (q *Query) scanRow(rows *sql.Rows, dest []interface{}) (map[string]interfac
 	// Pick all values we're interested in into a map.
 	result := make(map[string]interface{}, len(q.columnTypes))
 	for i, column := range columns {
-		switch q.columnTypes[column] {
-		case columnTypeKey:
+		if q.columnTypes[column] == columnTypeKey {
 			result[column] = *dest[i].(*string)
-		case columnTypeValue:
-			result[column] = *dest[i].(*float64)
+		} else {
+			if value, ok := parseStatus(*dest[i].(*sql.RawBytes)); ok { // Silently skip unparsable values.
+				result[column] = value
+			} else {
+				result[column] = -1
+			}
 		}
 	}
 	return result, nil
+}
+
+func parseStatus(data sql.RawBytes) (float64, bool) {
+	//fmt.Println("enter func")
+	var logRE = regexp.MustCompile(`.+\.(\d+)$`)
+	if bytes.Equal(data, []byte("Yes")) || bytes.Equal(data, []byte("ON")) {
+		return 1, true
+	}
+	if bytes.Equal(data, []byte("No")) || bytes.Equal(data, []byte("OFF")) {
+		return 0, true
+	}
+	// SHOW SLAVE STATUS Slave_IO_Running can return "Connecting" which is a non-running state.
+	if bytes.Equal(data, []byte("Connecting")) {
+		return 0, true
+	}
+	// SHOW GLOBAL STATUS like 'wsrep_cluster_status' can return "Primary" or "non-Primary"/"Disconnected"
+	if bytes.Equal(data, []byte("Primary")) {
+		return 1, true
+	}
+	if strings.EqualFold(string(data), "non-Primary") || bytes.Equal(data, []byte("Disconnected")) {
+		return 0, true
+	}
+	//fmt.Println("before regexp")
+	if logNum := logRE.Find(data); logNum != nil {
+		value, err := strconv.ParseFloat(string(logNum), 64)
+		return value, err == nil
+	}
+	//fmt.Println("after regexp")
+	value, err := strconv.ParseFloat(string(data), 64)
+	return value, err == nil
 }
