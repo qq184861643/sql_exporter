@@ -8,6 +8,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+//var ruleMetrics map[string]map[string]interface{} = make(map[string]map[string]interface{})
+
 // Job is a collection of targets with the same collectors applied.
 type Job interface {
 	Targets() []Target

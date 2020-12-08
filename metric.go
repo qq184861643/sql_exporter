@@ -2,13 +2,14 @@ package sql_exporter
 
 import (
 	"fmt"
-	"sort"
-
 	"github.com/free/sql_exporter/config"
 	"github.com/free/sql_exporter/errors"
+	//log "github.com/golang/glog"
 	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	"sort"
+	//"strings"
 )
 
 // MetricDesc is a descriptor for a family of metrics, sharing the same name, help, labes, type.
@@ -71,6 +72,24 @@ func NewMetricFamily(logContext string, mc *config.MetricConfig, constLabels []*
 
 // Collect is the equivalent of prometheus.Collector.Collect() but takes a Query output map to populate values from.
 func (mf MetricFamily) Collect(row map[string]interface{}, ch chan<- Metric) {
+	/*if len(mf.config.Rules) != 0 {
+		for _, rule := range mf.config.Rules {
+			key := ""
+			for _, label := range rule.SourceLabels {
+				key = key + ";" + row[label].(string)
+			}
+			if strings.ToLower(rule.Action) == "relabel" {
+				row[rule.TargetLabel] = ruleMetrics[rule.RuleMetric][key]
+
+			} else {
+				if ruleMetrics[mf.Name()] == nil {
+					ruleMetrics[mf.Name()] = make(map[string]string)
+				}
+				ruleMetrics[mf.Name()][key] = row[rule.TargetLabel].(string)
+				return
+			}
+		}
+	}*/
 	labelValues := make([]string, len(mf.labels))
 	for i, label := range mf.config.KeyLabels {
 		labelValues[i] = row[label].(string)

@@ -20,7 +20,6 @@ func Load(configFile string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	c := Config{configFile: configFile}
 	err = yaml.Unmarshal(buf, &c)
 	if err != nil {
@@ -379,6 +378,7 @@ type MetricConfig struct {
 	valueType prometheus.ValueType // TypeString converted to prometheus.ValueType
 	query     *QueryConfig         // QueryConfig resolved from QueryRef or generated from Query
 
+	Rules []*RuleConfig `yaml:"rules,omitempty"`
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
@@ -480,6 +480,36 @@ func (q *QueryConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	q.metrics = make([]*MetricConfig, 0, 2)
 
 	return checkOverflow(q.XXX, "metric")
+}
+
+// RuleConfig defines a named rule, to be referenced by a metric
+type RuleConfig struct {
+	RuleMetric   string                 `yaml:"rule_metric,omitempty"`
+	SourceLabels []string               `yaml:"source_labels"`
+	TargetLabel  string                 `yaml:"target_label,omitempty"`
+	Action       string                 `yaml:"action"`
+	RuleFile     string                 `yaml:"rule_file,omitempty"`
+	XXX          map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+func (r *RuleConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain RuleConfig
+	if err := unmarshal((*plain)(r)); err != nil {
+		return err
+	}
+	/*if r.RuleMetric == "" {
+		return fmt.Errorf("missing ruleMetric for metric.rules %+v", *r)
+	}*/
+	if r.Action == "" {
+		return fmt.Errorf("missing action for metric.rules %+v", *r)
+	}
+	if len(r.SourceLabels) == 0 {
+		return fmt.Errorf("missing source_labels for metric.rules %+v", *r)
+	}
+	if r.TargetLabel == "" {
+		r.TargetLabel = r.SourceLabels[0]
+	}
+	return checkOverflow(r.XXX, "metric")
 }
 
 // Secret special type for storing secrets.
