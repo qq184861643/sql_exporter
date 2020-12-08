@@ -193,7 +193,7 @@ func (q *Query) scanRow(rows *sql.Rows, dest []interface{}) (map[string]interfac
 			if value, ok := parseStatus(*dest[i].(*sql.RawBytes)); ok { // Silently skip unparsable values.
 				result[column] = value
 			} else {
-				result[column] = -1
+				result[column] = string(*dest[i].(*sql.RawBytes))
 			}
 		}
 	}
