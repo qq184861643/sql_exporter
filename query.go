@@ -103,6 +103,7 @@ func (q *Query) Collect(ctx context.Context, conn *sql.DB, ch chan<- Metric) {
 			continue
 		}
 		for _, mf := range q.metricFamilies {
+			res := 0
 			if len(mf.config.Rules) != 0 {
 				/*for _, rule := range mf.config.Rules {
 					key := ""
@@ -120,14 +121,14 @@ func (q *Query) Collect(ctx context.Context, conn *sql.DB, ch chan<- Metric) {
 						return
 					}
 				}*/
-				res := execRules(mf, &row)
+				res = execRules(*mf, row)
 				if res == 0 {
 					goto SKIP
 				}
 			}
 			mf.Collect(row, ch)
 		SKIP:
-			n := 1
+			res = res
 		}
 	}
 	if err1 := rows.Err(); err1 != nil {
@@ -257,21 +258,21 @@ func parseStatus(data sql.RawBytes) (float64, bool) {
 	return value, err == nil
 }
 
-func execRules(mf MetricFamily, row *map[string]interface{}) int {
+func execRules(mf MetricFamily, row map[string]interface{}) int {
 	res := 0
 	for _, rule := range mf.config.Rules {
 		key := ""
 		for _, label := range rule.SourceLabels {
-			key = key + ";" + *row[label].(string)
+			key = key + ";" + row[label].(string)
 		}
 		if strings.ToLower(rule.Action) == "relabel" {
-			*row[rule.TargetLabel] = ruleMetrics[rule.RuleMetric][key]
+			row[rule.TargetLabel] = ruleMetrics[rule.RuleMetric][key]
 			res = 1
 		} else {
 			if ruleMetrics[mf.Name()] == nil {
 				ruleMetrics[mf.Name()] = make(map[string]string)
 			}
-			ruleMetrics[mf.Name()][key] = *row[rule.TargetLabel].(string)
+			ruleMetrics[mf.Name()][key] = row[rule.TargetLabel].(string)
 		}
 	}
 	return res
