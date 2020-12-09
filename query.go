@@ -105,22 +105,6 @@ func (q *Query) Collect(ctx context.Context, conn *sql.DB, ch chan<- Metric) {
 		for _, mf := range q.metricFamilies {
 			res := 0
 			if len(mf.config.Rules) != 0 {
-				/*for _, rule := range mf.config.Rules {
-					key := ""
-					for _, label := range rule.SourceLabels {
-						key = key + ";" + row[label].(string)
-					}
-					if strings.ToLower(rule.Action) == "relabel" {
-						row[rule.TargetLabel] = ruleMetrics[rule.RuleMetric][key]
-
-					} else {
-						if ruleMetrics[mf.Name()] == nil {
-							ruleMetrics[mf.Name()] = make(map[string]string)
-						}
-						ruleMetrics[mf.Name()][key] = row[rule.TargetLabel].(string)
-						return
-					}
-				}*/
 				res = execRules(*mf, row)
 				if res == 0 {
 					goto SKIP
