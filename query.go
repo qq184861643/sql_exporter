@@ -13,7 +13,8 @@ import (
 	"strings"
 )
 
-var ruleMetrics map[string]map[string]string = make(map[string]map[string]string)
+//var ruleMetrics map[string]map[string]string = make(map[string]map[string]string)
+//var tmpMap map[string]map[string]string
 
 // Query wraps a sql.Stmt and all the metrics populated from it. It helps extract keys and values from result rows.
 type Query struct {
@@ -107,14 +108,13 @@ func (q *Query) Collect(ctx context.Context, conn *sql.DB, ch chan<- Metric) {
 			if len(mf.config.Rules) != 0 {
 				res = execRules(*mf, row)
 				if res == 0 {
-					goto SKIP
+					continue
 				}
 			}
 			mf.Collect(row, ch)
-		SKIP:
-			res = res
 		}
 	}
+	fmt.Println(ruleMetrics)
 	if err1 := rows.Err(); err1 != nil {
 		ch <- NewInvalidMetric(errors.Wrap(q.logContext, err1))
 	}
@@ -204,7 +204,6 @@ func (q *Query) scanRow(rows *sql.Rows, dest []interface{}) (map[string]interfac
 			if value, ok := parseStatus(*dest[i].(*sql.RawBytes)); ok { // Silently skip unparsable values.
 				result[column] = value
 			} else {
-				//result[column] = -1
 				result[column] = string(*dest[i].(*sql.RawBytes))
 			}
 		}
@@ -213,7 +212,6 @@ func (q *Query) scanRow(rows *sql.Rows, dest []interface{}) (map[string]interfac
 }
 
 func parseStatus(data sql.RawBytes) (float64, bool) {
-	//fmt.Println("enter func")
 	var logRE = regexp.MustCompile(`.+\.(\d+)$`)
 	if bytes.Equal(data, []byte("Yes")) || bytes.Equal(data, []byte("ON")) {
 		return 1, true
@@ -232,12 +230,10 @@ func parseStatus(data sql.RawBytes) (float64, bool) {
 	if strings.EqualFold(string(data), "non-Primary") || bytes.Equal(data, []byte("Disconnected")) {
 		return 0, true
 	}
-	//fmt.Println("before regexp")
 	if logNum := logRE.Find(data); logNum != nil {
 		value, err := strconv.ParseFloat(string(logNum), 64)
 		return value, err == nil
 	}
-	//fmt.Println("after regexp")
 	value, err := strconv.ParseFloat(string(data), 64)
 	return value, err == nil
 }
@@ -249,14 +245,19 @@ func execRules(mf MetricFamily, row map[string]interface{}) int {
 		for _, label := range rule.SourceLabels {
 			key = key + ";" + row[label].(string)
 		}
-		if strings.ToLower(rule.Action) == "relabel" {
-			row[rule.TargetLabel] = ruleMetrics[rule.RuleMetric][key]
-			res = 1
-		} else {
-			if ruleMetrics[mf.Name()] == nil {
-				ruleMetrics[mf.Name()] = make(map[string]string)
+		switch strings.ToLower(rule.Action) {
+		case "relabel": //change value of the target label
+			{
+				row[rule.TargetLabel] = ruleMetrics[rule.RuleMetric][key]
+				res = 1
 			}
-			ruleMetrics[mf.Name()][key] = row[rule.TargetLabel].(string)
+		default: //case "writelabel":
+			{
+				if tmpMap[mf.Name()] == nil {
+					tmpMap[mf.Name()] = make(map[string]string)
+				}
+				tmpMap[mf.Name()][key] = row[rule.TargetLabel].(string)
+			}
 		}
 	}
 	return res

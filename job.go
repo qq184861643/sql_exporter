@@ -29,8 +29,19 @@ func NewJob(jc *config.JobConfig, gc *config.GlobalConfig) (Job, errors.WithCont
 		targets:    make([]Target, 0, 10),
 		logContext: fmt.Sprintf("job=%q", jc.Name),
 	}
-
+	if jc.MaxConns != -1 {
+		gc.MaxConns = jc.MaxConns
+	}
+	if jc.MaxIdleConns != -1 {
+		gc.MaxIdleConns = jc.MaxIdleConns
+	}
 	for _, sc := range jc.StaticConfigs {
+		if sc.MaxConns != -1 {
+			gc.MaxConns = sc.MaxConns
+		}
+		if sc.MaxIdleConns != -1 {
+			gc.MaxIdleConns = sc.MaxIdleConns
+		}
 		for tname, dsn := range sc.Targets {
 			constLabels := prometheus.Labels{
 				"job":      jc.Name,

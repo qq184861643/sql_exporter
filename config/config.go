@@ -215,8 +215,9 @@ type JobConfig struct {
 	CollectorRefs []string        `yaml:"collectors"`     // names of collectors to apply to all targets in this job
 	StaticConfigs []*StaticConfig `yaml:"static_configs"` // collections of statically defined targets
 
-	collectors []*CollectorConfig // resolved collector references
-
+	collectors   []*CollectorConfig // resolved collector references
+	MaxConns     int                `yaml:"max_connections,omitempty"`      // maximum number of open connections to any one target
+	MaxIdleConns int                `yaml:"max_idle_connections,omitempty"` // maximum number of idle connections to any one target
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
@@ -228,6 +229,8 @@ func (j *JobConfig) Collectors() []*CollectorConfig {
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for JobConfig.
 func (j *JobConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	j.MaxConns = -1
+	j.MaxIdleConns = -1
 	type plain JobConfig
 	if err := unmarshal((*plain)(j)); err != nil {
 		return err
@@ -271,15 +274,19 @@ func (j *JobConfig) checkLabelCollisions() error {
 
 // StaticConfig defines a set of targets and optional labels to apply to the metrics collected from them.
 type StaticConfig struct {
-	Targets map[string]Secret `yaml:"targets"`          // map of target names to data source names
-	Labels  map[string]string `yaml:"labels,omitempty"` // labels to apply to all metrics collected from the targets
-
+	Targets      map[string]Secret `yaml:"targets"`                        // map of target names to data source names
+	Labels       map[string]string `yaml:"labels,omitempty"`               // labels to apply to all metrics collected from the targets
+	MaxConns     int               `yaml:"max_connections,omitempty"`      // maximum number of open connections to any one target
+	MaxIdleConns int               `yaml:"max_idle_connections,omitempty"` // maximum number of idle connections to any one target
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for StaticConfig.
 func (s *StaticConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// default value is -1, means do not replace the corresponding config in GlobalConfig
+	s.MaxConns = -1
+	s.MaxIdleConns = -1
 	type plain StaticConfig
 	if err := unmarshal((*plain)(s)); err != nil {
 		return err
