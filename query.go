@@ -104,18 +104,12 @@ func (q *Query) Collect(ctx context.Context, conn *sql.DB, ch chan<- Metric) {
 			continue
 		}
 		for _, mf := range q.metricFamilies {
-			//res := 0
 			if len(mf.config.Rules) != 0 {
 				execRules(*mf, row)
-				//res = execRules(*mf, row)
-				//if res == 0 {
-				//	continue
-				//}
 			}
 			mf.Collect(row, ch)
 		}
 	}
-	//fmt.Println(ruleMetrics)
 	if err1 := rows.Err(); err1 != nil {
 		ch <- NewInvalidMetric(errors.Wrap(q.logContext, err1))
 	}
@@ -240,7 +234,6 @@ func parseStatus(data sql.RawBytes) (float64, bool) {
 }
 
 func execRules(mf MetricFamily, row map[string]interface{}) int {
-	res := 0
 	for _, rule := range mf.config.Rules {
 		key := ""
 		for _, label := range rule.SourceLabels {
@@ -256,7 +249,6 @@ func execRules(mf MetricFamily, row map[string]interface{}) int {
 		case "relabel": //change value of the target label
 			{
 				row[rule.TargetLabel] = ruleMetrics[rule.RuleMetric][key]
-				res = 1
 			}
 		default: //case "writelabel":
 			{
@@ -271,5 +263,5 @@ func execRules(mf MetricFamily, row map[string]interface{}) int {
 			}
 		}
 	}
-	return res
+	return 0
 }
