@@ -104,17 +104,18 @@ func (q *Query) Collect(ctx context.Context, conn *sql.DB, ch chan<- Metric) {
 			continue
 		}
 		for _, mf := range q.metricFamilies {
-			res := 0
+			//res := 0
 			if len(mf.config.Rules) != 0 {
-				res = execRules(*mf, row)
-				if res == 0 {
-					continue
-				}
+				execRules(*mf, row)
+				//res = execRules(*mf, row)
+				//if res == 0 {
+				//	continue
+				//}
 			}
 			mf.Collect(row, ch)
 		}
 	}
-	fmt.Println(ruleMetrics)
+	//fmt.Println(ruleMetrics)
 	if err1 := rows.Err(); err1 != nil {
 		ch <- NewInvalidMetric(errors.Wrap(q.logContext, err1))
 	}
@@ -243,7 +244,13 @@ func execRules(mf MetricFamily, row map[string]interface{}) int {
 	for _, rule := range mf.config.Rules {
 		key := ""
 		for _, label := range rule.SourceLabels {
-			key = key + ";" + row[label].(string)
+			//fmt.Println(mf.Name(), label, row[label])
+			key = key + ";"
+			if k, ok := row[label].(string); ok {
+				key = key + k
+			} else {
+				key = key + " interface assertation error at operate key"
+			}
 		}
 		switch strings.ToLower(rule.Action) {
 		case "relabel": //change value of the target label
@@ -256,7 +263,11 @@ func execRules(mf MetricFamily, row map[string]interface{}) int {
 				if tmpMap[mf.Name()] == nil {
 					tmpMap[mf.Name()] = make(map[string]string)
 				}
-				tmpMap[mf.Name()][key] = row[rule.TargetLabel].(string)
+				if v, ok := row[rule.TargetLabel].(string); ok {
+					tmpMap[mf.Name()][key] = v
+				} else {
+					tmpMap[mf.Name()][key] = mf.Name() + " interface assertation error at writelabel rule"
+				}
 			}
 		}
 	}

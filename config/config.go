@@ -454,7 +454,26 @@ func (m *MetricConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 		checkLabel(m.ValueLabel, "value_label for metric", m.Name)
 	}
-
+	if len(m.Rules) > 0 {
+		verifyMap := make(map[string]int)
+		verifyMap[m.ValueLabel] = 1
+		for k := range m.KeyLabels {
+			verifyMap[m.KeyLabels[k]] = 1
+		}
+		for k := range m.StaticLabels {
+			verifyMap[k] = 1
+		}
+		for _, rule := range m.Rules {
+			for k := range rule.SourceLabels {
+				if _, ok := verifyMap[rule.SourceLabels[k]]; !ok {
+					return fmt.Errorf("rule source_labels must be in metric labels %q", m.Name)
+				}
+			}
+			if _, ok := verifyMap[rule.TargetLabel]; !ok {
+				return fmt.Errorf("rule target_label must be in metric labels %q", m.Name)
+			}
+		}
+	}
 	return checkOverflow(m.XXX, "metric")
 }
 
