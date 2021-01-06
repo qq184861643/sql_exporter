@@ -59,7 +59,6 @@ func NewTarget(
 	if name != "" {
 		logContext = fmt.Sprintf("%s, target=%q", logContext, name)
 	}
-
 	constLabelPairs := make([]*dto.LabelPair, 0, len(constLabels))
 	for n, v := range constLabels {
 		constLabelPairs = append(constLabelPairs, &dto.LabelPair{

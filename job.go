@@ -8,8 +8,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-//var ruleMetrics map[string]map[string]interface{} = make(map[string]map[string]interface{})
-
 // Job is a collection of targets with the same collectors applied.
 type Job interface {
 	Targets() []Target
@@ -29,6 +27,13 @@ func NewJob(jc *config.JobConfig, gc *config.GlobalConfig) (Job, errors.WithCont
 		targets:    make([]Target, 0, 10),
 		logContext: fmt.Sprintf("job=%q", jc.Name),
 	}
+	Maxconns := gc.MaxConns
+	MaxIdleConns := gc.MaxIdleConns
+	defer func() {
+		gc.MaxConns = Maxconns
+		gc.MaxIdleConns = MaxIdleConns
+	}()
+
 	if jc.MaxConns != -1 {
 		gc.MaxConns = jc.MaxConns
 	}
@@ -42,7 +47,9 @@ func NewJob(jc *config.JobConfig, gc *config.GlobalConfig) (Job, errors.WithCont
 		if sc.MaxIdleConns != -1 {
 			gc.MaxIdleConns = sc.MaxIdleConns
 		}
-		for tname, dsn := range sc.Targets {
+		for _, target := range sc.Targets {
+			tname := target.Instance
+			dsn := target.DSN
 			constLabels := prometheus.Labels{
 				"job":      jc.Name,
 				"instance": tname,
@@ -61,7 +68,6 @@ func NewJob(jc *config.JobConfig, gc *config.GlobalConfig) (Job, errors.WithCont
 			j.targets = append(j.targets, t)
 		}
 	}
-
 	return &j, nil
 }
 

@@ -10,6 +10,7 @@ import (
 	log "github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/xdean/goex/xconfig"
 	"gopkg.in/yaml.v2"
 )
 
@@ -274,10 +275,10 @@ func (j *JobConfig) checkLabelCollisions() error {
 
 // StaticConfig defines a set of targets and optional labels to apply to the metrics collected from them.
 type StaticConfig struct {
-	Targets      map[string]Secret `yaml:"targets"`                        // map of target names to data source names
-	Labels       map[string]string `yaml:"labels,omitempty"`               // labels to apply to all metrics collected from the targets
-	MaxConns     int               `yaml:"max_connections,omitempty"`      // maximum number of open connections to any one target
-	MaxIdleConns int               `yaml:"max_idle_connections,omitempty"` // maximum number of idle connections to any one target
+	Targets      []*JobTargetsConfig `yaml:"targets"`                        // map of target names to data source names
+	Labels       map[string]string   `yaml:"labels,omitempty"`               // labels to apply to all metrics collected from the targets
+	MaxConns     int                 `yaml:"max_connections,omitempty"`      // maximum number of open connections to any one target
+	MaxIdleConns int                 `yaml:"max_idle_connections,omitempty"` // maximum number of idle connections to any one target
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
 }
@@ -291,28 +292,75 @@ func (s *StaticConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(s)); err != nil {
 		return err
 	}
-
+	if len(s.Targets) == 0 {
+		return fmt.Errorf("no target defined for static config")
+	}
 	// Check for empty/duplicate target names/data source names
 	tnames := make(map[string]interface{})
 	dsns := make(map[string]interface{})
-	for tname, dsn := range s.Targets {
-		if tname == "" {
-			return fmt.Errorf("empty target name in static config %+v", s)
+	for _, target := range s.Targets {
+		if target.Instance == "" {
+			return fmt.Errorf("empty instance name in static config %+v", s)
 		}
-		if _, ok := tnames[tname]; ok {
-			return fmt.Errorf("duplicate target name %q in static_config %+v", tname, s)
+		if _, ok := tnames[target.Instance]; ok {
+			return fmt.Errorf("duplicate instance name %q in static_config %+v", target.Instance, s)
 		}
-		tnames[tname] = nil
-		if dsn == "" {
-			return fmt.Errorf("empty data source name in static config %+v", s)
+		tnames[target.Instance] = nil
+		if target.DSN == "" {
+			return fmt.Errorf("empty dsn in static config %+v", s)
 		}
-		if _, ok := dsns[string(dsn)]; ok {
-			return fmt.Errorf("duplicate data source name %q in static_config %+v", tname, s)
+		if _, ok := dsns[target.DSN]; ok {
+			return fmt.Errorf("duplicate dsn %q in static_config %+v", target.Instance, s)
 		}
-		dsns[string(dsn)] = nil
+		dsns[target.DSN] = nil
 	}
 
 	return checkOverflow(s.XXX, "static_config")
+}
+
+//
+// JobTargets
+//
+type JobTargetsConfig struct {
+	Instance string                 `yaml:"instance"`
+	DSN      string                 `yaml:"dsn"`
+	User     Secret                 `yaml:"user"`
+	Passwd   Secret                 `yaml:"password"`
+	XXX      map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+func (t *JobTargetsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain JobTargetsConfig
+	if err := unmarshal((*plain)(t)); err != nil {
+		return err
+	}
+
+	// Check required fields
+	if t.Instance == "" {
+		return fmt.Errorf("missing instance for target %+v", t)
+	}
+	if t.DSN == "" {
+		return fmt.Errorf("missing dsn for target %+v", t)
+	}
+	if t.User == "" {
+		return fmt.Errorf("missing user for target %+v", t)
+	}
+	if t.Passwd == "" {
+		return fmt.Errorf("missing password for target %+v", t)
+	}
+	//TODO:
+	user, err := xconfig.Decrypt(string(t.User), "sqlExporter@User")
+	if err != nil {
+		return fmt.Errorf("Decrypt db user failed for taget %+v", t)
+	}
+	passwd, err := xconfig.Decrypt(string(t.Passwd), "sqlExporter@Password")
+	if err != nil {
+		return fmt.Errorf("Decrypt db password failed for taget %+v", t)
+	}
+	t.DSN = strings.Replace(t.DSN, "[USER]", string(user), 1)
+	t.DSN = strings.Replace(t.DSN, "[PASSWORD]", string(passwd), 1)
+	//fmt.Println(t.DSN)
+	return checkOverflow(t.XXX, "target")
 }
 
 //
