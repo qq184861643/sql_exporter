@@ -238,6 +238,7 @@ func execRules(mf MetricFamily, row map[string]interface{}) int {
 		key := ""
 		for _, label := range rule.SourceLabels {
 			//fmt.Println(mf.Name(), label, row[label])
+			//key的值为source_labels中label对应的值的拼接字符串，以;分隔
 			key = key + ";"
 			if k, ok := row[label].(string); ok {
 				key = key + k
@@ -246,11 +247,14 @@ func execRules(mf MetricFamily, row map[string]interface{}) int {
 			}
 		}
 		switch strings.ToLower(rule.Action) {
-		case "relabel": //change value of the target label
+		case "relabel":
+			//根据key查询全局map，将查询结果赋予目标标签列
 			{
 				row[rule.TargetLabel] = ruleMetrics[rule.RuleMetric][key]
 			}
 		default: //case "writelabel":
+			//将规则指标的目标标签列的值写入临时全局map变量中
+			//该collector的所有查询结束后，会将临时全局map的值赋值给全局map，并置空临时map
 			{
 				if tmpMap[mf.Name()] == nil {
 					tmpMap[mf.Name()] = make(map[string]string)

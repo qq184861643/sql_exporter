@@ -230,6 +230,7 @@ func (j *JobConfig) Collectors() []*CollectorConfig {
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for JobConfig.
 func (j *JobConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// 若不为-1，则覆盖GlobalConfig中的对应值
 	j.MaxConns = -1
 	j.MaxIdleConns = -1
 	type plain JobConfig
@@ -275,7 +276,7 @@ func (j *JobConfig) checkLabelCollisions() error {
 
 // StaticConfig defines a set of targets and optional labels to apply to the metrics collected from them.
 type StaticConfig struct {
-	Targets      []*JobTargetsConfig `yaml:"targets"`                        // map of target names to data source names
+	Targets      []*JobTargetsConfig `yaml:"targets"`                        // array of targets
 	Labels       map[string]string   `yaml:"labels,omitempty"`               // labels to apply to all metrics collected from the targets
 	MaxConns     int                 `yaml:"max_connections,omitempty"`      // maximum number of open connections to any one target
 	MaxIdleConns int                 `yaml:"max_idle_connections,omitempty"` // maximum number of idle connections to any one target
@@ -320,12 +321,13 @@ func (s *StaticConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 //
 // JobTargets
+// 在yaml中以密文形式记录数据库的用户名和密码
 //
 type JobTargetsConfig struct {
 	Instance string                 `yaml:"instance"`
-	DSN      string                 `yaml:"dsn"`
-	User     Secret                 `yaml:"user"`
-	Passwd   Secret                 `yaml:"password"`
+	DSN      string                 `yaml:"dsn"`      //
+	User     Secret                 `yaml:"user"`     //密文形式
+	Passwd   Secret                 `yaml:"password"` //密文形式
 	XXX      map[string]interface{} `yaml:",inline" json:"-"`
 }
 
@@ -348,7 +350,7 @@ func (t *JobTargetsConfig) UnmarshalYAML(unmarshal func(interface{}) error) erro
 	if t.Passwd == "" {
 		return fmt.Errorf("missing password for target %+v", t)
 	}
-	//TODO:
+	//解密密文
 	user, err := xconfig.Decrypt(string(t.User), "sqlExporter@User")
 	if err != nil {
 		return fmt.Errorf("Decrypt db user failed for taget %+v", t)
@@ -357,8 +359,10 @@ func (t *JobTargetsConfig) UnmarshalYAML(unmarshal func(interface{}) error) erro
 	if err != nil {
 		return fmt.Errorf("Decrypt db password failed for taget %+v", t)
 	}
+	//将解密的用户名和密码放入dsn中
 	t.DSN = strings.Replace(t.DSN, "[USER]", string(user), 1)
 	t.DSN = strings.Replace(t.DSN, "[PASSWORD]", string(passwd), 1)
+	//替换完成
 	//fmt.Println(t.DSN)
 	return checkOverflow(t.XXX, "target")
 }

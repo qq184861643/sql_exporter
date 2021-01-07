@@ -17,7 +17,7 @@ import (
 )
 
 var ruleMetrics map[string]map[string]string = make(map[string]map[string]string)
-var tmpMap map[string]map[string]string
+var tmpMap map[string]map[string]string = make(map[string]map[string]string)
 
 const (
 	// Capacity for the channel to collect metrics.
@@ -118,11 +118,13 @@ func (t *target) Collect(ctx context.Context, ch chan<- Metric) {
 			// If using a single DB connection, collectors will likely run sequentially anyway. But we might have more.
 			go func(collector Collector) {
 				defer wg.Done()
-				tmpMap = make(map[string]map[string]string)
+				//tmpMap = make(map[string]map[string]string)
 				collector.Collect(ctx, t.conn, ch)
+				//该collector的所有查询结束后，会将临时全局map的值赋值给全局map，并置空临时map
 				for mfName := range tmpMap {
 					ruleMetrics[mfName] = tmpMap[mfName]
 				}
+				tmpMap = make(map[string]map[string]string)
 			}(c)
 		}
 	}
